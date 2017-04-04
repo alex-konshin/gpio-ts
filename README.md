@@ -45,8 +45,8 @@ Maximum duration of the same level to be accepted. This is an optional parameter
 Minimum sequence length to be accepted. This is an optional parameter. It sets the default value that can be changed for a particular GPIO by user application.
 
 #### Examples:
-`sudo insmod gpio-ts.ko gpios=27` 
-`sudo insmod gpio-ts.ko gpios=21,27 min_duration=400 max_duration=1100 min_seq_len=100` 
+`sudo insmod gpio-ts.ko gpios=27`    
+`sudo insmod gpio-ts.ko gpios=21,27 min_duration=400 max_duration=1100 min_seq_len=100`    
 
 ##### Unloading the driver
 `sudo rmmod gpio-ts`
