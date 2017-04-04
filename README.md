@@ -6,10 +6,14 @@
 Alex Konshin <akonshin@gmail.com>
 
 ### Overview
-This project contains source code of Linux driver that currently works on Raspberry Pi and I have plans to make it work on other Linux platforms. The main goal of this driver is to simplify developing of applications that need to receive some high frequency signals from GPIO, for example, from RF or IR receivers. 
-What this driver does? 
-- The driver can serves several GPIO simultaneously. Each GPIO is represented by a separate device file /dev/gpiots*. Each GPIO file may have different fltering settings.
-- The driver supports blocking and non-blocking reading and select/poll calls.   
+This project contains source code of Linux driver that currently works on Raspberry Pi and I have plans to make it work on other Linux platforms.
+The main goal of this driver is to simplify developing of applications that need to receive some high frequency signals from GPIO, for example, from RF or IR receivers.  
+I use this driver for receiving and decoding messages from RF sensors like thermometers.
+See my another project [https://github.com/alex-konshin/f007th-rpi](https://github.com/alex-konshin/f007th-rpi) that sues this driver (TBD: the project is not updated on github yet).   
+
+#### What this driver does? 
+- The driver can serves several GPIO simultaneously. Each GPIO is represented by a separate device file `/dev/gpiots*`. Each GPIO file may have different fltering settings.
+- The driver supports blocking and non-blocking reading and select/poll calls.
 - When user application opens device file the driver starts listening of GPIO level changes and creates a stream of 4-byte items. 2 highest bits of an item are the status (0, 1, NOISE or LOST_DATA). Other bits represent the durations of this status in microseconds. Status LOST_DATA means lost interruption due to delays or buffer overflow.  
 - The driver has built-in filter for received data. It considers too short or too long signals as noise. It also can ignore too short sequences of "good" signals. Basically it allows effectively separate good RF signals from noise for further decoding of them in user application. 
 - User application actually receives only "good" sequences separated by "noise" items.
@@ -41,8 +45,8 @@ Maximum duration of the same level to be accepted. This is an optional parameter
 Minimum sequence length to be accepted. This is an optional parameter. It sets the default value that can be changed for a particular GPIO by user application.
 
 #### Examples:
-`sudo insmod gpio-ts.ko gpios=27`
-`sudo insmod gpio-ts.ko gpios=21,27 min_duration=400 max_duration=1100 min_seq_len=100`
+`sudo insmod gpio-ts.ko gpios=27` 
+`sudo insmod gpio-ts.ko gpios=21,27 min_duration=400 max_duration=1100 min_seq_len=100` 
 
 ##### Unloading the driver
 `sudo rmmod gpio-ts`
