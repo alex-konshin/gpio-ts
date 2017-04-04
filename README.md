@@ -9,7 +9,7 @@ Alex Konshin <akonshin@gmail.com>
 This project contains source code of Linux driver that currently works on Raspberry Pi and I have plans to make it work on other Linux platforms.
 The main goal of this driver is to simplify developing of applications that need to receive some high frequency signals from GPIO, for example, from RF or IR receivers.  
 I use this driver for receiving and decoding messages from RF sensors like thermometers.
-See my another project [https://github.com/alex-konshin/f007th-rpi](https://github.com/alex-konshin/f007th-rpi) that sues this driver (TBD: the project is not updated on github yet).   
+See my another project [https://github.com/alex-konshin/f007th-rpi](https://github.com/alex-konshin/f007th-rpi) that uses this driver (TBD: the project is not updated on github yet).   
 
 #### What this driver does? 
 - The driver can serves several GPIO simultaneously. Each GPIO is represented by a separate device file `/dev/gpiots*`. Each GPIO file may have different fltering settings.
