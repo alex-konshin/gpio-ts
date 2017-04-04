@@ -57,8 +57,8 @@ module_param(max_duration,int,0444);
 module_param(min_seq_len,int,0444);
 MODULE_PARM_DESC(gpios, "GPIOs devices to be created.");
 MODULE_PARM_DESC(min_duration, "Minimum duration of the same level to be accepted.");
-MODULE_PARM_DESC(min_duration, "Maximum duration of the same level to be accepted.");
-MODULE_PARM_DESC(min_duration, "Minimum sequence length to be accepted.");
+MODULE_PARM_DESC(max_duration, "Maximum duration of the same level to be accepted.");
+MODULE_PARM_DESC(min_seq_len, "Minimum sequence length to be accepted.");
 
 // ------------------ Driver private methods -------------------------------
 

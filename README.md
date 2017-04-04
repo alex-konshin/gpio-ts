@@ -26,7 +26,7 @@ What this driver does?
 
 ### How to build
 TBD
-##### Building on Raspberry Pi
+#### Building on Raspberry Pi
 TBD
 
 ### Loading and unloading the driver.
