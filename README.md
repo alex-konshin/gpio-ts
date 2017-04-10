@@ -35,7 +35,7 @@ TBD
 
 ### Loading and unloading the driver.
 ##### Important note for Banana Pi M3
-Not all GPIOs allows to set interruptions handler. This is a hardware limitation. The following GPIO numbers are supported on BPI-M3:    
+Not all GPIOs allow to set interruptions handler. This is a hardware limitation. The following GPIO numbers are supported on BPI-M3:    
 32, 33, 34, 35, 202, 203, 204, 205, 226, 227, 228, 229, 234, 360, 361, 362.    
 See output of command `gpio readall` to find this pins on the connector.
 
