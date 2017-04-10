@@ -19,7 +19,6 @@
 #include <linux/device.h>
 #include <linux/miscdevice.h>
 #include <linux/module.h>
-//#include <linux/gpio/consumer.h> // it is not available in BPi-M3 kernel 3.4.39
 #include <linux/gpio.h>
 #include <linux/interrupt.h>
 //#include <linux/time.h>
@@ -120,12 +119,24 @@ static void enable(struct gpio_ts_data* ts_data) {
 static int __init gpio_ts_init(void) {
     int err;
     int i;
+    unsigned gpio;
+    bool valid;
 
     printk(KERN_INFO "%s: GPIO TS driver version %d.%d.\n", THIS_MODULE->name, GPIO_TS_VERSION_MAJOR, GPIO_TS_VERSION_MINOR);
     if (n_of_gpios < 1) { // TODO default table
         printk(KERN_ERR "%s: At least one GPIO input is required\n", THIS_MODULE->name);
         return -EINVAL;
     }
+
+    valid = true;
+    for (i = 0; i < n_of_gpios; i++) {
+      gpio = gpios[i];
+      if (!gpio_is_valid(gpio)) {
+          valid = false;
+          printk(KERN_INFO "%s: GPIO number %d is invalid.\n", THIS_MODULE->name, gpio);
+      }
+    }
+    if (!valid) return -EINVAL;
 
     err = alloc_chrdev_region(&gpio_ts_dev, 0, n_of_gpios, THIS_MODULE->name);
     if (err != 0) return err;
@@ -267,46 +278,28 @@ static int gpio_ts_open(struct inode* inode, struct file* pfile) {
     unsigned gpio;
     int irq;
 
-    //struct gpio_chip* chip;
-
     gpio_index = iminor(inode);
     gpio = (unsigned)gpios[gpio_index];
 
     err = gpio_request(gpio, THIS_MODULE->name);
     if (err != 0) {
-        printk(KERN_ERR "%s: unable to reserve GPIO %d\n", THIS_MODULE->name, gpio);
+        printk(KERN_ERR "%s: unable to reserve GPIO %d (error %d)\n", THIS_MODULE->name, gpio, -err);
         return err;
     }
 
     err = gpio_direction_input(gpio);
     if (err != 0) {
-        printk(KERN_ERR "%s: unable to set GPIO %d as input\n", THIS_MODULE->name, gpio);
+        printk(KERN_ERR "%s: unable to set GPIO %d as input (error %d)\n", THIS_MODULE->name, gpio, -err);
         gpio_free(gpio);
         return err;
     }
 
-    irq = gpio_to_irq(gpio); // FIXME it does not work for BPi-M3
-    /*
-      BPI-M3 linux/drivers/pinctrl/pinctrl-sunxi.c
-
-    chip = gpio_to_chip(gpio);
-    if (chip == NULL) {
-        printk(KERN_ERR "%s: Invalid GPIO %d - could not get chip\n", THIS_MODULE->name, gpio);
-        gpio_free(gpio);
-        return -ENXIO;
-    }
-    if (chip->to_irq == NULL) {
-        printk(KERN_ERR "%s: Invalid GPIO %d - function to_irq is not set\n", THIS_MODULE->name, gpio);
-        gpio_free(gpio);
-        return -ENXIO;
-    }
-    irq = chip->to_irq(chip, gpio - chip->base);
+    irq = gpio_to_irq(gpio);
     if (irq < 0) {
-        printk(KERN_ERR "%s: Cannot get IRQ number for GPIO %d (error %d)\n", THIS_MODULE->name, gpio, -irq);
+        printk(KERN_ERR "%s: cannot get IRQ for GPIO %d (error %d)\n", THIS_MODULE->name, gpio, -irq);
         gpio_free(gpio);
         return irq;
     }
-    */
 
     err = request_irq(irq, gpio_ts_isr, IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING, THIS_MODULE->name, pfile);
     if (err != 0) {

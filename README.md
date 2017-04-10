@@ -6,7 +6,7 @@
 Alex Konshin <akonshin@gmail.com>
 
 ### Overview
-This project contains source code of Linux driver that currently works on Raspberry Pi and I have plans to make it work on other Linux platforms.
+This project contains source code of Linux driver that currently works on Raspberry Pi and Banana Pi M3 and I have plans to make it work on other Linux platforms.
 The main goal of this driver is to simplify developing of applications that need to receive some high frequency signals from GPIO, for example, from RF or IR receivers.  
 I use this driver for receiving and decoding messages from RF sensors like thermometers.
 See my another project [https://github.com/alex-konshin/f007th-rpi](https://github.com/alex-konshin/f007th-rpi) that uses this driver (TBD: the project is not updated on github yet).   
@@ -34,6 +34,11 @@ TBD
 TBD
 
 ### Loading and unloading the driver.
+##### Important note for Banana Pi M3
+Not all GPIOs allows to set interruptions handler. This is a hardware limitation. The following GPIO numbers are supported on BPI-M3:    
+32, 33, 34, 35, 202, 203, 204, 205, 226, 227, 228, 229, 234, 360, 361, 362.    
+See output of command `gpio readall` to find this pins on the connector.
+
 #### Module parameters:
 ##### gpios 
 The comma-separated list of GPIOs that will be served by this driver. Device `/dev/gpiots*` will be created for each GPIO from this list.
