@@ -1,6 +1,6 @@
 # Object files
 *.o
-*.ko
+#*.ko
 *.obj
 *.elf
 
@@ -35,3 +35,5 @@
 /.cproject
 /.settings
 /.externalToolBuilders
+/gpio-ts-bpim3/*.ko
+/gpio-ts-rpi3/*.ko
