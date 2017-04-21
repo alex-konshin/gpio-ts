@@ -40,7 +40,12 @@
 #include "gpio-ts.h"
 
 #define GPIO_TS_VERSION_MAJOR 1
-#define GPIO_TS_VERSION_MINOR 0
+#define GPIO_TS_VERSION_MINOR 1
+
+//#define AVOID_GPIO_GET_VALUE
+#ifdef AVOID_GPIO_GET_VALUE
+#define MIN_TRUSTED_LEVEL_CHANGE 100000LL // 100us
+#endif
 
 //------------------- Module parameters -------------------------------------
 
@@ -85,7 +90,15 @@ static dev_t          gpio_ts_dev;
 static struct cdev    gpio_ts_cdev;
 static struct class*  gpio_ts_class = NULL;
 
-static gpio_ts_statistics_t statistics;
+static unsigned irq_data_overflow_counter;
+static unsigned buffer_overflow_counter;
+static unsigned isr_counter;
+
+#ifdef AVOID_GPIO_GET_VALUE
+static volatile s64 last_irq_time_ns = 0LL;
+static volatile unsigned last_level = 0;
+#endif
+
 
 static gpio_ts_tasklet_data_t tasklets[MAX_GPIO_ENTRIES];
 
@@ -162,7 +175,10 @@ static int __init gpio_ts_init(void) {
         return err;
     }
     init_irq_tasklet_data_slots();
-    memset(&statistics, 0, sizeof(gpio_ts_statistics_t));
+
+    irq_data_overflow_counter = 0L;
+    buffer_overflow_counter = 0L;
+    isr_counter = 0L;
 
     printk(KERN_INFO "%s: The module has been initialized.\n", THIS_MODULE->name);
     return 0;
@@ -241,6 +257,13 @@ static long gpio_ts_ioctl(struct file* pfile, unsigned int cmd, unsigned long ar
         }
         ts_data->min_seq_len = (unsigned)arg;
         break;
+
+    case GPIOTS_IOCTL_GET_IRQ_OVERFLOW_CNT:
+        return irq_data_overflow_counter;
+    case GPIOTS_IOCTL_GET_BUF_OVERFLOW_CNT:
+        return buffer_overflow_counter;
+    case GPIOTS_IOCTL_GET_ISR_CNT:
+        return isr_counter;
 
     default:
         printk(KERN_WARNING "%s: Invalid IOCTL command %08x\n", THIS_MODULE->name, cmd);
@@ -369,13 +392,16 @@ static irqreturn_t gpio_ts_isr(int irq, void* filedata) {
     struct gpio_ts_irq_data* irq_data;
     gpio_ts_tasklet_data_t* tasklet_data;
     ktime_t kt;
+#ifdef AVOID_GPIO_GET_VALUE
+    s64 time_ns;
+#endif
 
     unsigned irq_data_index;
     unsigned irq_data_next_index;
     unsigned gpio;
     unsigned gpio_level;
 
-    statistics.isr_counter++; // this counter is not critical and no needs to make it atomic
+    isr_counter++; // this counter is not critical and no needs to make it atomic
 
     if (filedata == NULL) return IRQ_NONE;
 
@@ -384,22 +410,33 @@ static irqreturn_t gpio_ts_isr(int irq, void* filedata) {
     if (ts_data == NULL) return IRQ_NONE;
     if (!ts_data->enabled) return IRQ_HANDLED;
 
+    kt = ktime_get();
+
     tasklet_data = &tasklets[ts_data->gpio_index];
     irq_data_index = tasklet_data->write_index;
     irq_data_next_index = (irq_data_index+1)&(N_IRQ_DATA_SLOTS-1);
     if (tasklet_data->read_index == irq_data_next_index) {
       // ignore this interruption due to irq_data buffer overflow
-      statistics.irq_data_overflow_counter++; // this counter is not critical and no needs to make it atomic
+      irq_data_overflow_counter++; // this counter is not critical and no needs to make it atomic
 
       if (tasklet_data->tasklet.state == 0)
         tasklet_schedule(&tasklet_data->tasklet); // the tasklet was not scheduled => fixing it
       return IRQ_HANDLED;
     }
 
-    kt = ktime_get();
-
     gpio = ts_data->gpio;
-    gpio_level = gpio_get_value(gpio); // TODO how to avoid it?
+#ifdef AVOID_GPIO_GET_VALUE
+    time_ns = ktime_to_ns(kt);
+    if (last_irq_time_ns == 0LL || (time_ns - last_irq_time_ns) <= MIN_TRUSTED_LEVEL_CHANGE) {
+      last_level = gpio_get_value(gpio);
+    } else {
+      last_level ^= 1;
+    }
+    last_irq_time_ns = time_ns;
+    gpio_level = last_level;
+#else
+    gpio_level = gpio_get_value(gpio);
+#endif
 
     irq_data = &tasklet_data->irq_data[irq_data_index];
     irq_data->kt = kt;
@@ -488,7 +525,7 @@ static void gpio_ts_irq_tasklet_function(unsigned long gpio_index) {
         current_index = ts_data->write_index;
         next_index = (current_index+1) & BUFFER_INDEX_MASK;
         if (next_index == ts_data->read_index) { // overflow
-            statistics.buffer_overflow_counter++;
+            buffer_overflow_counter++;
             new_status = STATUS_LOST_DATA;
             close_sequence = true;
             new_signal = false;
