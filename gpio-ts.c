@@ -324,9 +324,11 @@ static int gpio_ts_open(struct inode* inode, struct file* pfile) {
         return irq;
     }
 
+//TODO #if defined(CONFIG_ARCH_MESON64_ODROIDC2)
+//#ifdef CONFIG_PINCTRL_AMLOGIC  // ODROID C2
     err = request_irq(irq, gpio_ts_isr, IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING, THIS_MODULE->name, pfile);
     if (err != 0) {
-        printk(KERN_ERR "%s: unable to handle GPIO %d IRQ (error %d).\n", THIS_MODULE->name, gpio, -err);
+        printk(KERN_ERR "%s: request_irq failed for IRQ# %d and GPIO %d (error %d).\n", THIS_MODULE->name, irq, gpio, -err);
         gpio_free(gpio);
         return err;
     }
