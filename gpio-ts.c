@@ -35,6 +35,15 @@
 #include <linux/delay.h>  // msleep
 //#include <linux/atomic.h>
 
+#if defined(CONFIG_ARCH_MESON64_ODROIDC2)
+// ODROID C2
+#include <linux/amlogic/pinctrl_amlogic.h>
+#include <linux/amlogic/aml_gpio_consumer.h>
+
+#define MESON_GPIOIRQ_BASE  96
+#define GPIOIRQ_BANK_0      0
+#endif
+
 #include <asm/div64.h>
 
 #include "gpio-ts.h"
@@ -65,8 +74,12 @@ MODULE_PARM_DESC(max_duration, "Maximum duration of the same level to be accepte
 MODULE_PARM_DESC(min_seq_len, "Minimum sequence length to be accepted.");
 
 // ------------------ Driver private methods -------------------------------
-
+#if defined(CONFIG_ARCH_MESON64_ODROIDC2)
+static irqreturn_t gpio_isr_rising(int irq, void* filedata);
+static irqreturn_t gpio_isr_falling(int irq, void* filedata);
+#else
 static irqreturn_t gpio_ts_isr(int irq, void *pfile);
+#endif
 static int gpio_ts_open(struct inode *inode, struct file *pfile);
 static int gpio_ts_release(struct inode *inode, struct file *pfile);
 static unsigned int gpio_ts_poll(struct file* pfile, poll_table* wait);
@@ -292,6 +305,10 @@ static void ts_data_reset(unsigned gpio, unsigned gpio_index, struct gpio_ts_dat
     ts_data->min_seq_len = min_seq_len;
     ts_data->signal = false;
     ts_data->enabled = false; // input disabled until the first read() or poll() calls
+#if defined(CONFIG_ARCH_MESON64_ODROIDC2)
+    ts_data->irq0_bank = -1;
+    ts_data->irq1_bank = -1;
+#endif
 }
 
 static int gpio_ts_open(struct inode* inode, struct file* pfile) {
@@ -299,7 +316,12 @@ static int gpio_ts_open(struct inode* inode, struct file* pfile) {
     int err;
     unsigned gpio_index;
     unsigned gpio;
+#if defined(CONFIG_ARCH_MESON64_ODROIDC2)
+    int irq0_bank = 0;
+    int irq1_bank = 0;
+#else
     int irq;
+#endif
 
     gpio_index = iminor(inode);
     gpio = (unsigned)gpios[gpio_index];
@@ -313,37 +335,116 @@ static int gpio_ts_open(struct inode* inode, struct file* pfile) {
     err = gpio_direction_input(gpio);
     if (err != 0) {
         printk(KERN_ERR "%s: unable to set GPIO %d as input (error %d)\n", THIS_MODULE->name, gpio, -err);
-        gpio_free(gpio);
-        return err;
+        goto fail_1;
     }
+
+#if defined(CONFIG_ARCH_MESON64_ODROIDC2)
+    // ODROID C2 requires 2 separate physical IRQ for rising and falling edges
+
+    irq0_bank = meson_fix_irqbank(GPIOIRQ_BANK_0);
+    if (irq0_bank < 0) {
+        printk(KERN_ERR "%s: Could not find IRQ bank for falling edge of GPIO %d (error %d)\n", THIS_MODULE->name, gpio, -err);
+        err = -EINVAL;
+        goto fail_1;
+    }
+    err = gpio_for_irq(gpio, AML_GPIO_IRQ(irq0_bank, FILTER_NUM0, GPIO_IRQ_FALLING));
+    if (err != 0) {
+        printk(KERN_ERR "%s: Could not setup IRQ for falling edge of GPIO %d (error %d from gpio_for_irq)\n", THIS_MODULE->name, gpio, -err);
+        err = -EINVAL;
+        goto fail_1;
+    }
+
+    err = request_irq(MESON_GPIOIRQ_BASE+irq0_bank, gpio_isr_falling, IRQF_DISABLED, "gpio-ts-irq0", pfile); //FIXME
+    if (err != 0) {
+        printk(KERN_ERR "%s: Could not setup IRQ handler for falling edge of GPIO %d (IRQ# %d, error %d from request_irq)\n", THIS_MODULE->name, gpio, MESON_GPIOIRQ_BASE+irq0_bank, -err);
+        goto fail_1;
+    }
+
+    irq1_bank = meson_fix_irqbank(irq0_bank+1);
+    if (irq1_bank < 0) {
+        printk(KERN_ERR "%s: Could not find IRQ bank for rising edge of GPIO %d (error %d)\n", THIS_MODULE->name, gpio, -err);
+        err = -EINVAL;
+        goto fail_2;
+    }
+    err = gpio_for_irq(gpio, AML_GPIO_IRQ(irq1_bank, FILTER_NUM0, GPIO_IRQ_RISING));
+    if (err != 0) {
+        printk(KERN_ERR "%s: Could not setup IRQ for rising edge of GPIO %d (error %d from gpio_for_irq)\n", THIS_MODULE->name, gpio, -err);
+        err = -EINVAL;
+        goto fail_2;
+    }
+
+    err = request_irq(MESON_GPIOIRQ_BASE+irq1_bank, gpio_isr_rising, IRQF_DISABLED, "gpio-ts-irq1", pfile); //FIXME
+    if (err != 0) {
+        printk(KERN_ERR "%s: Could not setup IRQ handler for rising edge of GPIO %d (IRQ# %d, error %d from request_irq)\n", THIS_MODULE->name, gpio, MESON_GPIOIRQ_BASE+irq1_bank, -err);
+        goto fail_2;
+    }
+
+#else
 
     irq = gpio_to_irq(gpio);
     if (irq < 0) {
         printk(KERN_ERR "%s: cannot get IRQ for GPIO %d (error %d)\n", THIS_MODULE->name, gpio, -irq);
-        gpio_free(gpio);
-        return irq;
+        goto fail_1;
     }
 
-//TODO #if defined(CONFIG_ARCH_MESON64_ODROIDC2)
-//#ifdef CONFIG_PINCTRL_AMLOGIC  // ODROID C2
     err = request_irq(irq, gpio_ts_isr, IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING, THIS_MODULE->name, pfile);
     if (err != 0) {
         printk(KERN_ERR "%s: request_irq failed for IRQ# %d and GPIO %d (error %d).\n", THIS_MODULE->name, irq, gpio, -err);
-        gpio_free(gpio);
-        return err;
+        goto fail_1;
     }
+#endif
 
     ts_data = kzalloc(sizeof(struct gpio_ts_data), GFP_KERNEL);
-    if (ts_data == NULL) return -ENOMEM;
+    if (ts_data == NULL) {
+        printk(KERN_ERR "%s: gpio_ts_open for GPIO %d failed because memory for ts_data could not be allocated.\n", THIS_MODULE->name, gpio);
+        err = -ENOMEM;
+        goto fail_3;
+    }
 
     spin_lock_init(&ts_data->spinlock);
     init_waitqueue_head(&ts_data->read_queue);
     ts_data_reset(gpio, gpio_index, ts_data);
 
     pfile->private_data = ts_data;
+#if defined(CONFIG_ARCH_MESON64_ODROIDC2)
+    ts_data->irq0_bank = irq0_bank;
+    ts_data->irq1_bank = irq1_bank;
+    printk(KERN_INFO "%s: Opened GPIO %d (rising IRQ# %d, falling IRQ# %d)\n", THIS_MODULE->name, gpio, MESON_GPIOIRQ_BASE+irq1_bank, MESON_GPIOIRQ_BASE+irq0_bank);
+#else
     printk(KERN_INFO "%s: Opened GPIO %d (IRQ %d)\n", THIS_MODULE->name, gpio, irq);
+#endif
     return 0;
+
+
+fail_3:
+#if defined(CONFIG_ARCH_MESON64_ODROIDC2)
+    free_irq(MESON_GPIOIRQ_BASE+irq1_bank, pfile);
+fail_2:
+    free_irq(MESON_GPIOIRQ_BASE+irq0_bank, pfile);
+#else
+    free_irq(gpio_to_irq(gpio), pfile);
+#endif
+
+fail_1:
+    gpio_free(gpio);
+    return err;
 }
+
+#if defined(CONFIG_ARCH_MESON64_ODROIDC2)
+static void gpio_ts_irq_free(struct file* pfile, struct gpio_ts_data* ts_data) {
+    int irq_banks[2];
+    unsigned gpio = ts_data->gpio;
+
+    meson_free_irq(gpio_to_irq(gpio), &irq_banks[0]);
+
+    /* rising irq bank */
+    if (irq_banks[0] != -1) free_irq(irq_banks[0] + MESON_GPIOIRQ_BASE, pfile);
+
+    /* falling irq bank */
+    if (irq_banks[1] != -1) free_irq(irq_banks[1] + MESON_GPIOIRQ_BASE, pfile);
+}
+#endif
+
 
 // ------------------ Close file -----------------------------------
 
@@ -358,8 +459,11 @@ static int gpio_ts_release(struct inode* inode,  struct file* pfile) {
     printk(KERN_INFO "%s: Closing GPIO %d...\n", THIS_MODULE->name, gpio);
     pfile->private_data = NULL;
     ts_data->enabled = false;
-
+#if defined(CONFIG_ARCH_MESON64_ODROIDC2)
+    gpio_ts_irq_free(pfile, ts_data);
+#else
     free_irq(gpio_to_irq(gpio), pfile);
+#endif
     gpio_free(gpio);
 
     tasklet_data = &tasklets[ts_data->gpio_index];
@@ -388,6 +492,101 @@ static int gpio_ts_release(struct inode* inode,  struct file* pfile) {
 /**
  * Actual processing of this event is done later during execution of tasklet.
  */
+#if defined(CONFIG_ARCH_MESON64_ODROIDC2)
+// TODO: optimize handlers: do not schedule tasklet after rising edge and ignore very short spikes
+
+static irqreturn_t gpio_isr_rising(int irq, void* filedata) {
+    struct file* pfile;
+    struct gpio_ts_data* ts_data;
+    struct gpio_ts_irq_data* irq_data;
+    gpio_ts_tasklet_data_t* tasklet_data;
+    ktime_t kt;
+
+    unsigned irq_data_index;
+    unsigned irq_data_next_index;
+    unsigned gpio_level = 1;
+
+    isr_counter++; // this counter is not critical and no needs to make it atomic
+
+    if (filedata == NULL) return IRQ_NONE;
+
+    pfile = (struct file*)filedata;
+    ts_data = pfile->private_data;
+    if (ts_data == NULL) return IRQ_NONE;
+    if (!ts_data->enabled) return IRQ_HANDLED;
+
+    kt = ktime_get();
+
+    tasklet_data = &tasklets[ts_data->gpio_index];
+    irq_data_index = tasklet_data->write_index;
+    irq_data_next_index = (irq_data_index+1)&(N_IRQ_DATA_SLOTS-1);
+    if (tasklet_data->read_index == irq_data_next_index) {
+      // ignore this interruption due to irq_data buffer overflow
+      irq_data_overflow_counter++; // this counter is not critical and no needs to make it atomic
+
+      if (tasklet_data->tasklet.state == 0)
+        tasklet_schedule(&tasklet_data->tasklet); // the tasklet was not scheduled => fixing it
+      return IRQ_HANDLED;
+    }
+
+    irq_data = &tasklet_data->irq_data[irq_data_index];
+    irq_data->kt = kt;
+    irq_data->pfile = pfile;
+    irq_data->gpio_level = gpio_level;
+
+    tasklet_data->write_index = irq_data_next_index;
+    tasklet_schedule(&tasklet_data->tasklet);
+
+    return IRQ_HANDLED;
+}
+
+static irqreturn_t gpio_isr_falling(int irq, void* filedata) {
+    struct file* pfile;
+    struct gpio_ts_data* ts_data;
+    struct gpio_ts_irq_data* irq_data;
+    gpio_ts_tasklet_data_t* tasklet_data;
+    ktime_t kt;
+
+    unsigned irq_data_index;
+    unsigned irq_data_next_index;
+    unsigned gpio_level = 0;
+
+    isr_counter++; // this counter is not critical and no needs to make it atomic
+
+    if (filedata == NULL) return IRQ_NONE;
+
+    pfile = (struct file*)filedata;
+    ts_data = pfile->private_data;
+    if (ts_data == NULL) return IRQ_NONE;
+    if (!ts_data->enabled) return IRQ_HANDLED;
+
+    kt = ktime_get();
+
+    tasklet_data = &tasklets[ts_data->gpio_index];
+    irq_data_index = tasklet_data->write_index;
+    irq_data_next_index = (irq_data_index+1)&(N_IRQ_DATA_SLOTS-1);
+    if (tasklet_data->read_index == irq_data_next_index) {
+      // ignore this interruption due to irq_data buffer overflow
+      irq_data_overflow_counter++; // this counter is not critical and no needs to make it atomic
+
+      if (tasklet_data->tasklet.state == 0)
+        tasklet_schedule(&tasklet_data->tasklet); // the tasklet was not scheduled => fixing it
+      return IRQ_HANDLED;
+    }
+
+    irq_data = &tasklet_data->irq_data[irq_data_index];
+    irq_data->kt = kt;
+    irq_data->pfile = pfile;
+    irq_data->gpio_level = gpio_level;
+
+    tasklet_data->write_index = irq_data_next_index;
+    tasklet_schedule(&tasklet_data->tasklet);
+
+    return IRQ_HANDLED;
+}
+
+#else
+
 static irqreturn_t gpio_ts_isr(int irq, void* filedata) {
     struct file* pfile;
     struct gpio_ts_data* ts_data;
@@ -450,6 +649,7 @@ static irqreturn_t gpio_ts_isr(int irq, void* filedata) {
 
     return IRQ_HANDLED;
 }
+#endif
 
 static uint32_t ns2us(s64 ns) {
     s64 n = ns + 500;
