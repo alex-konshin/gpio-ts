@@ -6,10 +6,10 @@
 Alex Konshin <akonshin@gmail.com>
 
 ### Overview
-This project contains source code of Linux driver that currently works on Raspberry Pi and Banana Pi M3 and I have plans to make it work on other Linux platforms.
+This project contains source code of Linux driver that currently tested on Raspberry Pi 3, Banana Pi M3, ODROID C2 and I have plans to make it work on other Linux platforms.
 The main goal of this driver is to simplify developing of applications that need to receive some high frequency signals from GPIO, for example, from RF or IR receivers.  
 I use this driver for receiving and decoding messages from RF sensors like thermometers.
-See my another project [https://github.com/alex-konshin/f007th-rpi](https://github.com/alex-konshin/f007th-rpi) that uses this driver (TBD: the project is not updated on github yet).   
+See my another project [https://github.com/alex-konshin/f007th-rpi](https://github.com/alex-konshin/f007th-rpi) that can use this driver.   
 
 #### What this driver does? 
 - The driver can serve several GPIO simultaneously. Each GPIO is represented by a separate device file `/dev/gpiots*`. Each GPIO file may have different fltering settings.
@@ -31,7 +31,30 @@ See my another project [https://github.com/alex-konshin/f007th-rpi](https://gith
 ### How to build
 TBD
 #### Building on Raspberry Pi
-TBD
+Install Linux headers - see instruction [https://www.raspberrypi.org/documentation/linux/kernel/headers.md](https://www.raspberrypi.org/documentation/linux/kernel/headers.md)    
+
+Download this driver sources and build it:    
+`cd ~`    
+`git clone https://github.com/alex-konshin/gpio-ts.git`    
+`cd gpio-ts`    
+`make all`    
+The driver file `gpio-ts.ko` is created in folder `~/gpio-ts`.
+
+#### Building on ODROID C2
+Download and setup Linux headers:    
+`git clone --depth 1 https://github.com/hardkernel/linux.git -b odroidc2-3.14.y`    
+`cd /lib/modules/$(uname -r)`    
+`sudo ln -s /usr/src/linux-headers-$(uname -r) build`    
+
+Download this driver sources and build it:    
+`cd ~`    
+`git clone https://github.com/alex-konshin/gpio-ts.git`    
+`cd gpio-ts`    
+`make all`    
+The driver file `gpio-ts.ko` is created in folder `~/gpio-ts`.
+
+#### Building on Banana Pi M3
+Building Linux kernel module on BPI-M3 is currently a nightmare. I finally figured out how to cross-compile it on another machine and after some hacks I was able to load and use it. But I don't remember all steps I did to achieve it. To make your life easier I provided compiled driver for the current BPI-M3 kernel. Take it from folder `bpi-m3-kernel-3.4.39`.
 
 ### Loading and unloading the driver.
 ##### Important note for Banana Pi M3
