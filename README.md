@@ -29,7 +29,7 @@ See my another project [https://github.com/alex-konshin/f007th-rpi](https://gith
 | `README.md` | This file. |
 
 ### How to build
-TBD
+
 #### Building on Raspberry Pi
 Install Linux headers - see instruction [https://www.raspberrypi.org/documentation/linux/kernel/headers.md](https://www.raspberrypi.org/documentation/linux/kernel/headers.md)    
 
