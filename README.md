@@ -6,7 +6,7 @@
 Alex Konshin <akonshin@gmail.com>
 
 ### Overview
-This project contains source code of Linux driver that currently tested on Raspberry Pi 3, Banana Pi M3, ODROID C2 and I have plans to make it work on other Linux platforms.
+This project contains source code of Linux driver that currently tested on Raspberry Pi 3, Banana Pi M3, ODROID C2, MinnowBoard Turbot.
 The main goal of this driver is to simplify developing of applications that need to receive some high frequency signals from GPIO, for example, from RF or IR receivers.  
 I use this driver for receiving and decoding messages from RF sensors like thermometers.
 See my another project [https://github.com/alex-konshin/f007th-rpi](https://github.com/alex-konshin/f007th-rpi) that can use this driver.   
@@ -46,6 +46,22 @@ Download and setup Linux headers:
 `cd /lib/modules/$(uname -r)`    
 `sudo ln -s /usr/src/linux-headers-$(uname -r) build`    
 
+Download this driver sources and build it:    
+`cd ~`    
+`git clone https://github.com/alex-konshin/gpio-ts.git`    
+`cd gpio-ts`    
+`make all`    
+The driver file `gpio-ts.ko` is created in folder `~/gpio-ts`.
+
+#### Building on MinnowBoard
+Install Linux headers:    
+`sudo apt-get install linux-headers-$(uname -r)`    
+Install make, gcc and g++ if they are not installed yet:
+```
+sudo apt install make
+sudo apt install gcc
+sudo apt install g++
+```
 Download this driver sources and build it:    
 `cd ~`    
 `git clone https://github.com/alex-konshin/gpio-ts.git`    
