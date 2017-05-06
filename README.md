@@ -12,7 +12,7 @@ I use this driver for receiving and decoding messages from RF sensors like therm
 See my another project [https://github.com/alex-konshin/f007th-rpi](https://github.com/alex-konshin/f007th-rpi) that can use this driver.   
 
 #### What this driver does? 
-- The driver can serve several GPIO simultaneously. Each GPIO is represented by a separate device file `/dev/gpiots*`. Each GPIO file may have different fltering settings.
+- The driver can serve several GPIO simultaneously. Each GPIO is represented by a separate device file `/dev/gpiots*`. Each GPIO file may have different filtering settings.
 - The driver supports blocking and non-blocking reading and select/poll calls.
 - When user application opens device file the driver starts listening of GPIO level changes and creates a stream of 4-byte items. 2 highest bits of an item are the status (0, 1, NOISE or LOST_DATA). Other bits represent the durations of this status in microseconds. Status LOST_DATA means lost interruption due to delays or buffer overflow.  
 - The driver has built-in filter for received data. It considers too short or too long signals as noise. It also can ignore too short sequences of "good" signals. Basically it allows effectively separate good RF signals from noise for further decoding of them in user application. 
@@ -34,28 +34,36 @@ See my another project [https://github.com/alex-konshin/f007th-rpi](https://gith
 Install Linux headers - see instruction [https://www.raspberrypi.org/documentation/linux/kernel/headers.md](https://www.raspberrypi.org/documentation/linux/kernel/headers.md)    
 
 Download this driver sources and build it:    
-`cd ~`    
-`git clone https://github.com/alex-konshin/gpio-ts.git`    
-`cd gpio-ts`    
-`make all`    
+```
+cd ~
+git clone https://github.com/alex-konshin/gpio-ts.git
+cd gpio-ts
+make all
+```
 The driver file `gpio-ts.ko` is created in folder `~/gpio-ts`.
 
 #### Building on ODROID C2
 Download and setup Linux headers:    
-`git clone --depth 1 https://github.com/hardkernel/linux.git -b odroidc2-3.14.y`    
-`cd /lib/modules/$(uname -r)`    
-`sudo ln -s /usr/src/linux-headers-$(uname -r) build`    
+```
+git clone --depth 1 https://github.com/hardkernel/linux.git -b odroidc2-3.14.y
+cd /lib/modules/$(uname -r)
+sudo ln -s /usr/src/linux-headers-$(uname -r) build
+```
 
 Download this driver sources and build it:    
-`cd ~`    
-`git clone https://github.com/alex-konshin/gpio-ts.git`    
-`cd gpio-ts`    
-`make all`    
+```
+cd ~
+git clone https://github.com/alex-konshin/gpio-ts.git
+cd gpio-ts
+make all
+```
 The driver file `gpio-ts.ko` is created in folder `~/gpio-ts`.
 
 #### Building on MinnowBoard
 Install Linux headers:    
-`sudo apt-get install linux-headers-$(uname -r)`    
+```
+sudo apt-get install linux-headers-$(uname -r)
+```
 Install make, gcc and g++ if they are not installed yet:
 ```
 sudo apt install make
@@ -63,10 +71,12 @@ sudo apt install gcc
 sudo apt install g++
 ```
 Download this driver sources and build it:    
-`cd ~`    
-`git clone https://github.com/alex-konshin/gpio-ts.git`    
-`cd gpio-ts`    
-`make all`    
+```
+cd ~
+git clone https://github.com/alex-konshin/gpio-ts.git
+cd gpio-ts
+make all
+```
 The driver file `gpio-ts.ko` is created in folder `~/gpio-ts`.
 
 #### Building on Banana Pi M3
