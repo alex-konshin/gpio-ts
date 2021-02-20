@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# This script deploys gpio-ts.ko into system and update system configuration 
+# This script deploys gpio-ts.ko into system and updates system configuration 
 # to load the driver during system boot.
 # The script has to be run as root or via sudo.
 
@@ -22,7 +22,7 @@ if [ ! -d /etc/modprobe.d ]; then
   exit 1
 fi
 
-if [ ! -d /etc/modprobe.d ]; then
+if [ ! -d /etc/modules-load.d ]; then
   echo "Directory /etc/modules-load.d does not exist. Either this script does not support this platform or it should be updated."
   exit 1
 fi
